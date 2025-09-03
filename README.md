@@ -1,6 +1,6 @@
 # Task Manager with Chatbot + Smithy Plugins
 
-[![Build](https://img.shields.io/github/actions/workflow/status/<LalithaSreeDamarla>/<task-manager-with-bot>/ci.yml?branch=main)](https://github.com/<LalithaSreeDamarla>/<task-manager-with-bot>/actions)
+[![Build](https://img.shields.io/github/actions/workflow/status/LalithaSreeDamarla/task-manager-with-bot/ci.yml?branch=main)](https://github.com/LalithaSreeDamarla/task-manager-with-bot/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Node.js](https://img.shields.io/badge/Node.js-18.x-green.svg)](https://nodejs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue.svg)](https://www.typescriptlang.org/)
@@ -36,40 +36,43 @@ It is structured as a **monorepo** with both backend and frontend, along with cu
 ## 📂 Repository Structure
 .
 ├── backend/ # AWS Lambda functions, SAM templates
+|
 ├── frontend/ # React frontend app
+|
 ├── plugins/ # Custom Smithy plugins
+|
 ├── smithy-typescript/ # Generated Smithy TypeScript SDK
+|
 ├── gradle/ # Gradle wrapper and configs
+|
 ├── .gitignore
+|
 ├── gradlew / gradlew.bat
+|
 ├── settings.gradle.kts
+|
 └── README.md
 
-Install dependencies
-
-Frontend
-
+**Install dependencies**
+**1.Frontend**
 cd frontend
 npm install
 npm run dev
 
-
-Backend
-
+**2.Backend**
 cd backend
 sam build
 sam deploy --guided
 
-3. Generate Smithy Typescript Client
+**3.Generate Smithy Typescript Client**
 cd smithy-typescript
 ./gradlew build
 
-Development
-Linting / Formatting
+**4.Development**
+**Linting / Formatting**
 --npm run lint      # ESLint
 --npm run format    # Prettier
 
-
-Unit Testing
-Jest configured with mock functions.
+**5.Unit Testing**
+**Jest configured with mock functions**
 --npm test
