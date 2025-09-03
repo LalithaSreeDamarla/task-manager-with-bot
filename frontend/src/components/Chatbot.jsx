@@ -13,10 +13,14 @@ export default function Chatbot({ tasks = [] }) {
   const [loading, setLoading] = useState(false);
   const listRef = useRef(null);
 
-  // Auto-scroll to bottom on new message
+    /// Auto-scroll to bottom on new message
   useEffect(() => {
-    listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" });
+    const el = listRef.current;
+    if (el && typeof el.scrollTo === "function") {
+      el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+    }
   }, [messages, loading]);
+
 
   const send = async (e) => {
     e.preventDefault();

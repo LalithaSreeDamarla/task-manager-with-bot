@@ -1,5 +1,11 @@
 // src/api.js
-export const API = import.meta.env.VITE_API_URL;
+// src/api.js
+export const API =
+  (typeof import.meta !== "undefined" &&
+    import.meta.env &&
+    import.meta.env.VITE_API_URL) ||
+  process.env.VITE_API_URL ||
+  "http://localhost:3000"; // fallback used in Jest
 
 // parse text as JSON if possible; otherwise return the raw text
 async function parse(res) {
