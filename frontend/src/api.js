@@ -1,24 +1,66 @@
 // src/api.js
-export const API_BASE = import.meta.env.VITE_API_BASE;
-const j = (r) => (r.ok ? r.json() : r.json().then(e => { throw e; }));
+export const API = import.meta.env.VITE_API_URL;
 
-export const listTasks = () =>
-  fetch(`${API_BASE}/tasks`).then(j);
+// parse text as JSON if possible; otherwise return the raw text
+async function parse(res) {
+  const text = await res.text();
+  try { return JSON.parse(text); } catch { return text; }
+}
 
-export const createTask = (payload) =>
-  fetch(`${API_BASE}/tasks`, {
+async function assertOk(res) {
+  if (!res.ok) {
+    const body = await parse(res);
+    const msg = typeof body === "string" ? body : body?.message || `HTTP ${res.status}`;
+    throw new Error(msg);
+  }
+}
+
+export async function listTasks() {
+  const res = await fetch(`${API}/tasks`);
+  await assertOk(res);
+  const data = await parse(res);
+  // always return an array
+  return Array.isArray(data) ? data : (data?.Items ?? data?.items ?? []);
+}
+
+export async function createTask(task) {
+  const res = await fetch(`${API}/tasks`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  }).then(j);
+    body: JSON.stringify(task),
+  });
+  await assertOk(res);
+  return parse(res);
+}
 
-export const updateTask = (id, payload) =>
-  fetch(`${API_BASE}/tasks/${id}`, {
+export async function updateTask(id, patch) {
+  const res = await fetch(`${API}/tasks/${id}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  }).then(j);
+    body: JSON.stringify(patch),
+  });
+  await assertOk(res);
+  return parse(res);
+}
 
-export const deleteTask = (id) =>
-  fetch(`${API_BASE}/tasks/${id}`, { method: "DELETE" })
-    .then(r => (r.ok ? {} : j(r)));
+export async function deleteTask(id) {
+  const res = await fetch(`${API}/tasks/${id}`, { method: "DELETE" });
+  await assertOk(res);
+  return parse(res);
+}
+
+export async function sendChat(prompt, extras = {}) {
+  const res = await fetch(`${API}/chat`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ prompt, ...extras }),
+  });
+  await assertOk(res);
+  return parse(res);
+}
+
+export async function getTask(id, opts = {}) {
+  const res = await fetch(`${API}/tasks/${id}`, opts);
+  if (!res.ok) throw new Error(`getTask ${res.status}`);
+  return res.json();
+}

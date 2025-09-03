@@ -1,12 +1,11 @@
 import { useState, useRef, useEffect } from "react";
+import { sendChat } from "../api";  // ← use shared helper (POST /chat with {prompt})
 
 /**
  * Chatbot — grounded in your task data.
- * - Sends { prompt, context: <condensed tasks> } to POST /chat
- * - Keeps message history
- * - Typing indicator + basic error handling
+ * Sends { prompt, context } to POST /chat
  */
-export default function Chatbot({ apiBase, tasks = [] }) {
+export default function Chatbot({ tasks = [] }) {
   const [messages, setMessages] = useState([
     { role: "assistant", text: "Hi! Ask me anything about your tasks or projects." },
   ]);
@@ -24,16 +23,16 @@ export default function Chatbot({ apiBase, tasks = [] }) {
     const prompt = input.trim();
     if (!prompt || loading) return;
 
-    // 1) Optimistic UI: add user's message
+    // Optimistic UI
     setMessages((m) => [...m, { role: "user", text: prompt }]);
     setInput("");
     setLoading(true);
 
     try {
-      // 2) Condense tasks to a compact, model-friendly context (limit size)
+      // Condense tasks for context (keep payload small)
       const condensed = (tasks || [])
         .filter(Boolean)
-        .slice(0, 50) // cap to avoid huge payloads
+        .slice(0, 50)
         .map((t) => ({
           id: t.id,
           title: t.title,
@@ -43,24 +42,17 @@ export default function Chatbot({ apiBase, tasks = [] }) {
           dueDate: t.dueDate ? new Date(t.dueDate).toISOString().slice(0, 10) : null,
         }));
 
-      // 3) POST to /chat with prompt + context
-      const res = await fetch(`${apiBase}/chat`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt, context: condensed }),
-      });
+      // Call backend via helper → POST /chat with { prompt, context }
+      const data = await sendChat(prompt, { context: condensed });
 
-      // 4) Show reply or server-side error
-      const data = await res.json();
-      if (!res.ok) {
-        const detail = data?.detail || data?.message || "Unknown error";
-        setMessages((m) => [...m, { role: "assistant", text: `⚠️ ${detail}` }]);
-      } else {
-        setMessages((m) => [...m, { role: "assistant", text: data.reply || "(no reply)" }]);
-      }
+      setMessages((m) => [
+        ...m,
+        { role: "assistant", text: data.reply || "(no reply)" },
+      ]);
     } catch (err) {
-      // Network / CORS issues
-      setMessages((m) => [...m, { role: "assistant", text: `⚠️ Network error: ${String(err)}` }]);
+      const msg = typeof err?.message === "string" ? err.message : String(err);
+      setMessages((m) => [...m, { role: "assistant", text: `⚠️ ${msg}` }]);
+      console.error("chat failed:", err);
     } finally {
       setLoading(false);
     }

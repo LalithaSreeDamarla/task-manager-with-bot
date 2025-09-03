@@ -1,0 +1,39 @@
+{
+  "version": "1.0",
+  "sources": ["model/"],
+  "projections": {
+    "ts-client": {
+      "plugins": {
+        "typescript-client-codegen": {
+          "package": "@demo/tasks-client",
+          "packageVersion": "0.1.0",
+          "service": "demo.tasks#TaskService",
+          "protocol": "aws.protocols#restJson1",
+          "generateTypeDoc": false,
+          "private": true
+        }
+      }
+    },
+    "ts-ssdk": {
+      "plugins": {
+        "typescript-ssdk-codegen": {
+          "package": "@demo/tasks-ssdk",
+          "packageVersion": "0.1.0",
+          "service": "demo.tasks#TaskService",
+          "protocol": "aws.protocols#restJson1",
+          "generateTypeDoc": false,
+          "private": true
+        }
+      }
+    },
+    "openapi": {
+      "plugins": {
+        "openapi": {
+          "service": "demo.tasks#TaskService",
+          "useJsonName": true
+        }
+      }
+    }
+  }
+}
+

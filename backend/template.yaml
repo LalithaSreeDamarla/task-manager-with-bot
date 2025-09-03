@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
-Description: Task manager with health + tasks CRUD
+Description: Task manager with health + tasks CRUD + chat (tool use)
 
 Globals:
   Function:
@@ -10,20 +10,26 @@ Globals:
     Tracing: Active
     Environment:
       Variables:
-        TASKS_TABLE: !Ref TasksTable
+        TASKS_TABLE: Tasks
         AWS_NODEJS_CONNECTION_REUSE_ENABLED: '1'
-  Api:
-    Cors:
-      AllowMethods: "'GET,POST,PUT,DELETE,OPTIONS'"
-      AllowHeaders: "'Content-Type,Authorization'"
-      AllowOrigin: "'*'"
 
 Resources:
-  # ---- DynamoDB table for tasks ----
+  # ---------- Explicit API with CORS ----------
+  RestApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: Prod
+      Cors:
+        AllowOrigin: "'*'"
+        AllowHeaders: "'Content-Type,Authorization'"
+        AllowMethods: "'GET,POST,PUT,DELETE,OPTIONS'"
+
+  # ---------- DynamoDB table ----------
   TasksTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      BillingMode: PAY_PER_REQUEST         # on-demand
+      TableName: Tasks
+      BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
         - AttributeName: id
           AttributeType: S
@@ -31,8 +37,10 @@ Resources:
         - AttributeName: id
           KeyType: HASH
       TableClass: STANDARD
+      StreamSpecification:
+        StreamViewType: NEW_IMAGE
 
-  # ---- Health function (from Step 1) ----
+  # ---------- Health ----------
   HealthFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -42,66 +50,165 @@ Resources:
         HealthGet:
           Type: Api
           Properties:
+            RestApiId: !Ref RestApi
             Path: /health
             Method: GET
-
-  # ---- Tasks function: CRUD ----
+        HealthOptions:
+          Type: Api
+          Properties:
+            RestApiId: !Ref RestApi
+            Path: /health
+            Method: OPTIONS
+  
   TasksFunction:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: tasks/
-      Handler: index.handler
+      CodeUri: tasks/           # <-- unchanged
+      Handler: dist/index.handler       # <-- CHANGED (compiled TS output)
+      Runtime: nodejs20.x
+      Environment:
+        Variables:
+          TASKS_TABLE: Tasks
+          BEDROCK_REGION: us-east-1
+          BEDROCK_MODEL_ID: anthropic.claude-3-haiku-20240307-v1:0
       Policies:
         - DynamoDBCrudPolicy:
-            TableName: !Ref TasksTable
+            TableName: Tasks
+        - Statement:
+            - Effect: Allow
+              Action:
+                - bedrock:InvokeModel
+                - bedrock:InvokeModelWithResponseStream
+              Resource: "*"
       Events:
         ListTasks:
           Type: Api
-          Properties: 
+          Properties:
+            RestApiId: !Ref RestApi
             Path: /tasks
-            Method: GET 
+            Method: GET
         CreateTask:
           Type: Api
-          Properties: 
+          Properties:
+            RestApiId: !Ref RestApi
             Path: /tasks
-            Method: POST 
+            Method: POST
+        GetTask:                         # <-- NEW: GET /tasks/{id}
+          Type: Api
+          Properties:
+            RestApiId: !Ref RestApi
+            Path: /tasks/{id}
+            Method: GET
         UpdateTask:
           Type: Api
-          Properties: 
-            Path: /tasks/{id} 
-            Method: PUT 
+          Properties:
+            RestApiId: !Ref RestApi
+            Path: /tasks/{id}
+            Method: PUT
         DeleteTask:
           Type: Api
           Properties:
+            RestApiId: !Ref RestApi
             Path: /tasks/{id}
-            Method: DELETE 
-  
+            Method: DELETE
+        TasksOptions:
+          Type: Api
+          Properties:
+            RestApiId: !Ref RestApi
+            Path: /tasks
+            Method: OPTIONS
+        TaskByIdOptions:
+          Type: Api
+          Properties:
+            RestApiId: !Ref RestApi
+            Path: /tasks/{id}
+            Method: OPTIONS
+  PlanFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: planner/
+      Handler: index.handler
+      Runtime: nodejs20.x
+      Timeout: 30
+      MemorySize: 512
+      Environment:
+        Variables:
+          TASKS_TABLE: Tasks           # <— same fixed name
+          BEDROCK_REGION: us-east-1
+          BEDROCK_MODEL_ID: anthropic.claude-3-haiku-20240307-v1:0
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - Statement:
+            - Effect: Allow
+              Action: dynamodb:UpdateItem
+              Resource: !GetAtt TasksTable.Arn
+            - Effect: Allow
+              Action:
+                - bedrock:InvokeModel
+                - bedrock:InvokeModelWithResponseStream
+              Resource: "*"
+      Events:
+        OnNewTask:
+          Type: DynamoDB
+          Properties:
+            Stream: !GetAtt TasksTable.StreamArn
+            StartingPosition: LATEST
+            BatchSize: 10
+            Enabled: true
+            FilterCriteria:
+              Filters:
+                - Pattern: |
+                    { "eventName": ["INSERT"] }
+                    
+  # ---------- Chat (Bedrock + tool use → DynamoDB) ----------
   ChatFunction:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: chat/
       Handler: index.handler
+      Runtime: nodejs20.x
+      Timeout: 25
+      MemorySize: 512
       Environment:
         Variables:
           BEDROCK_REGION: us-east-1
           BEDROCK_MODEL_ID: anthropic.claude-3-haiku-20240307-v1:0
+          TASKS_TABLE: Tasks
       Policies:
-        # Allow invoking Bedrock models
+        - AWSLambdaBasicExecutionRole
+        - DynamoDBCrudPolicy:
+            TableName: Tasks
         - Statement:
             - Effect: Allow
               Action:
                 - bedrock:InvokeModel
+                - bedrock:InvokeModelWithResponseStream 
               Resource: "*"
+            - Effect: Allow
+              Action:
+                - dynamodb:PutItem
+                - dynamodb:UpdateItem
+                - dynamodb:GetItem
+                - dynamodb:Scan
+              Resource: !GetAtt TasksTable.Arn
+      
       Events:
         ChatPost:
           Type: Api
           Properties:
+            RestApiId: !Ref RestApi
             Path: /chat
             Method: POST
+        ChatOptions:
+          Type: Api
+          Properties:
+            RestApiId: !Ref RestApi
+            Path: /chat
+            Method: OPTIONS
 
 Outputs:
   ApiUrl:
-    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod"
+    Value: !Sub "https://${RestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod"
     Description: Invoke URL for API Gateway
   TasksTableName:
-    Value: !Ref TasksTable
+    Value: Tasks

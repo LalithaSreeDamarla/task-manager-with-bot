@@ -1,0 +1,13 @@
+{
+  "name": "smithy-crud-demo",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "generate": "node config/generate-crud.mjs"
+  },
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.600.0",
+    "@aws-sdk/lib-dynamodb": "^3.600.0",
+    "uuid": "^9.0.1"
+  }
+}
