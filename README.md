@@ -36,21 +36,13 @@ It is structured as a **monorepo** with both backend and frontend, along with cu
 ## 📂 Repository Structure
 .
 ├── backend/ # AWS Lambda functions, SAM templates
-|
 ├── frontend/ # React frontend app
-|
 ├── plugins/ # Custom Smithy plugins
-|
 ├── smithy-typescript/ # Generated Smithy TypeScript SDK
-|
 ├── gradle/ # Gradle wrapper and configs
-|
 ├── .gitignore
-|
 ├── gradlew / gradlew.bat
-|
 ├── settings.gradle.kts
-|
 └── README.md
 
 **Install dependencies**
